@@ -3,28 +3,26 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 
-# ----------------- CONFIG -----------------
+# ---------------- CONFIG ----------------
 st.set_page_config(page_title="Matrix Transformations Visualizer",
                    layout="wide")
 
-# ----------------- TITLE ------------------
 st.title("🔢 Matrix Transformations Visualizer")
 st.markdown(
     "**Interactive 2D Linear Algebra Tool** – visualize "
-    r"$T(\mathbf{x}) = A\mathbf{x}$ on a unit square, grid, and vectors."
+    r"$T(\mathbf{x}) = A\mathbf{x} + \mathbf{b}$ on a unit square, grid, and vectors."
 )
 
-# ----------------- SESSION STATE ----------
+# ---------------- SESSION STATE ----------------
 if "A" not in st.session_state:
-    st.session_state.A = np.array([[1.0, 0.0],
-                                   [0.0, 1.0]])
+    st.session_state.A = np.eye(2, dtype=float)  # 2×2 identity
+if "b" not in st.session_state:
+    st.session_state.b = np.array([0.0, 0.0], dtype=float)
 
-# ----------------- SIDEBAR: MATRIX --------
-st.sidebar.header("🎛️ Matrix Controls")
+# ---------------- SIDEBAR: MATRIX A ----------------
+st.sidebar.header("🎛️ Linear Part (Matrix A)")
 
-st.sidebar.subheader("📝 Custom 2×2 Matrix A")
 col1, col2 = st.sidebar.columns(2)
-
 a11 = col1.number_input("a₁₁", value=float(st.session_state.A[0, 0]),
                         step=0.1, format="%.2f")
 a12 = col2.number_input("a₁₂", value=float(st.session_state.A[0, 1]),
@@ -53,59 +51,101 @@ st.sidebar.markdown("</div>", unsafe_allow_html=True)
 st.sidebar.metric("🔢 det(A)", f"{det_A:.3f}")
 st.sidebar.metric("📏 trace(A)", f"{trace_A:.3f}")
 
-# ----------------- PRESET BUTTONS ---------
-st.sidebar.subheader("✨ Quick Transforms")
+# ---------------- SIDEBAR: TRANSLATION b ----------------
+st.sidebar.header("📍 Translation (Vector b)")
 
-c1, c2 = st.sidebar.columns(2)
-with c1:
-    if st.button("↕️ X-axis reflection"):
-        st.session_state.A = np.array([[1.0, 0.0],
-                                       [0.0, -1.0]])
-        st.experimental_rerun()
-    if st.button("↔️ Y-axis reflection"):
-        st.session_state.A = np.array([[-1.0, 0.0],
-                                       [0.0, 1.0]])
-        st.experimental_rerun()
+tx = st.sidebar.number_input("b₁ (translate x)", value=float(st.session_state.b[0]),
+                             step=0.1, format="%.2f")
+ty = st.sidebar.number_input("b₂ (translate y)", value=float(st.session_state.b[1]),
+                             step=0.1, format="%.2f")
+b = np.array([tx, ty], dtype=float)
+st.session_state.b = b.copy()
 
-with c2:
-    if st.button("⚫ Origin reflection"):
-        st.session_state.A = np.array([[-1.0, 0.0],
-                                       [0.0, -1.0]])
-        st.experimental_rerun()
-    if st.button("🔄 Reset identity"):
-        st.session_state.A = np.array([[1.0, 0.0],
-                                       [0.0, 1.0]])
-        st.experimental_rerun()
+st.sidebar.markdown("<div style='text-align:center;'>", unsafe_allow_html=True)
+st.latex(
+    st.latex(r"A = \begin{pmatrix} 1 & 0 \\ 0 & 1 \end{pmatrix}")
+)
+st.sidebar.markdown("</div>", unsafe_allow_html=True)
 
-# update A lagi setelah preset
+# ---------------- PRESET TRANSFORMATIONS ----------------
+st.sidebar.header("✨ Preset Transformations")
+
+tab_basic, tab_reflect = st.sidebar.tabs(
+    ["Basic (Scaling / Rotation / Shearing)", "Reflections"]
+)
+
+# BASIC: Scaling, Rotation, Shearing
+with tab_basic:
+    st.markdown("**Scaling**")
+    s_x = st.slider("Scale X (sₓ)", 0.1, 3.0, 1.0, 0.1)
+    s_y = st.slider("Scale Y (sᵧ)", 0.1, 3.0, 1.0, 0.1)
+
+    st.markdown("**Rotation**")
+    angle_deg = st.slider("Angle θ (degrees)", -180.0, 180.0, 0.0, 1.0)
+    theta = np.radians(angle_deg)
+
+    st.markdown("**Shearing**")
+    sh_x = st.slider("Shear X (kₓ)", -2.0, 2.0, 0.0, 0.1)
+    sh_y = st.slider("Shear Y (kᵧ)", -2.0, 2.0, 0.0, 0.1)
+
+    if st.button("Apply Scale + Rotate + Shear"):
+        S = np.array([[s_x, 0.0],
+                      [0.0, s_y]], dtype=float)
+        R = np.array([[np.cos(theta), -np.sin(theta)],
+                      [np.sin(theta),  np.cos(theta)]], dtype=float)
+        H = np.array([[1.0, sh_x],
+                      [sh_y, 1.0]], dtype=float)
+        A_new = H @ R @ S
+        st.session_state.A = A_new
+        A = A_new.copy()
+
+# REFLECTIONS
+with tab_reflect:
+    st.markdown("**Reflection Matrices**")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("X-axis"):
+            st.session_state.A = np.array([[1.0, 0.0],
+                                           [0.0, -1.0]], dtype=float)
+        if st.button("Y-axis"):
+            st.session_state.A = np.array([[-1.0, 0.0],
+                                           [0.0, 1.0]], dtype=float)
+    with c2:
+        if st.button("Origin"):
+            st.session_state.A = np.array([[-1.0, 0.0],
+                                           [0.0, -1.0]], dtype=float)
+        if st.button("Line y = x"):
+            st.session_state.A = np.array([[0.0, 1.0],
+                                           [1.0, 0.0]], dtype=float)
+
+# update A (kalau ada preset reflection dipencet)
 A = st.session_state.A.copy()
 det_A = float(np.linalg.det(A))
 
-# ----------------- TEST & ANIMATION -------
-st.sidebar.subheader("🧪 Test & Animation")
+# ---------------- TEST VECTOR & ANIMATION ----------------
+st.sidebar.header("🧪 Test & Animation")
 
-test_x = st.sidebar.number_input("Test vector x", value=0.5, step=0.1)
-test_y = st.sidebar.number_input("Test vector y", value=0.5, step=0.1)
+test_x = st.sidebar.number_input("Test vector x", value=0.5, step=0.1, format="%.2f")
+test_y = st.sidebar.number_input("Test vector y", value=0.5, step=0.1, format="%.2f")
 t = st.sidebar.slider("Animation t (0 = I, 1 = A)", 0.0, 1.0, 1.0, 0.01)
 
-A_t = (1.0 - t) * np.eye(2) + t * A
-test_vec = np.array([test_x, test_y], dtype=float)
-test_t = A_t @ test_vec
+A_t = (1.0 - t) * np.eye(2) + t * A  # interpolasi linear
+b_t = t * b                          # translasi juga dianimasikan
 
-# ----------------- GEOMETRY ---------------
+test_vec = np.array([test_x, test_y], dtype=float)
+test_t = A_t @ test_vec + b_t
+
+# ---------------- GEOMETRY (UNIT SQUARE, GRID, BASIS) ----------------
 def make_geometry():
-    # unit square
     square = np.array([[0, 0],
                        [1, 0],
                        [1, 1],
                        [0, 1],
                        [0, 0]], dtype=float)
-    # basis vectors
     e1 = np.array([[0, 0],
                    [1, 0]], dtype=float)
     e2 = np.array([[0, 0],
                    [0, 1]], dtype=float)
-    # grid
     xs = np.linspace(-0.5, 1.5, 9)
     ys = np.linspace(-0.5, 1.5, 9)
     X, Y = np.meshgrid(xs, ys)
@@ -114,27 +154,25 @@ def make_geometry():
 
 square, e1, e2, grid = make_geometry()
 
-square_t = (A_t @ square.T).T
-e1_t = (A_t @ e1.T).T
-e2_t = (A_t @ e2.T).T
-grid_t = (A_t @ grid.T).T
+# transformasi penuh: T(x) = A_t x + b_t
+square_t = (A_t @ square.T).T + b_t
+e1_t = (A_t @ e1.T).T + b_t
+e2_t = (A_t @ e2.T).T + b_t
+grid_t = (A_t @ grid.T).T + b_t
 
-# ----------------- PLOTS -------------------
+# ---------------- PLOTS ----------------
 colL, colR = st.columns(2)
 
 with colL:
     st.subheader("📐 Original Space")
     fig1, ax1 = plt.subplots(figsize=(5, 5))
 
-    # unit square
     ax1.plot(square[:, 0], square[:, 1], "k-", linewidth=3, label="Unit square")
     ax1.fill(square[:, 0], square[:, 1], color="lightgray", alpha=0.5)
 
-    # basis
     ax1.arrow(0, 0, 1, 0, head_width=0.05, color="blue", linewidth=3, label="e₁")
     ax1.arrow(0, 0, 0, 1, head_width=0.05, color="green", linewidth=3, label="e₂")
 
-    # grid
     ax1.scatter(grid[:, 0], grid[:, 1], color="gray", s=20, alpha=0.6)
 
     ax1.set_aspect("equal", "box")
@@ -148,32 +186,29 @@ with colL:
     st.pyplot(fig1)
 
 with colR:
-    st.subheader("✨ Transformed Space")
+    st.subheader("✨ Transformed Space (T(x) = A x + b)")
     fig2, ax2 = plt.subplots(figsize=(5, 5))
 
-    # transformed unit square
     ax2.plot(square_t[:, 0], square_t[:, 1], "r-", linewidth=3,
              label="T(unit square)")
     ax2.fill(square_t[:, 0], square_t[:, 1], color="red", alpha=0.25)
 
-    # transformed basis
-    ax2.arrow(0, 0, e1_t[1, 0], e1_t[1, 1],
+    ax2.arrow(b_t[0], b_t[1], e1_t[1, 0] - b_t[0], e1_t[1, 1] - b_t[1],
               head_width=0.07, color="blue", linewidth=3, label="T(e₁)")
-    ax2.arrow(0, 0, e2_t[1, 0], e2_t[1, 1],
+    ax2.arrow(b_t[0], b_t[1], e2_t[1, 0] - b_t[0], e2_t[1, 1] - b_t[1],
               head_width=0.07, color="green", linewidth=3, label="T(e₂)")
 
-    # transformed grid
     ax2.scatter(grid_t[:, 0], grid_t[:, 1], color="orange", s=18, alpha=0.8,
                 label="T(grid)")
 
-    # test vector
-    ax2.arrow(0, 0, test_t[0], test_t[1],
+    ax2.arrow(b_t[0], b_t[1],
+              test_t[0] - b_t[0], test_t[1] - b_t[1],
               head_width=0.09, color="lime", linewidth=3,
               label=f"T([{test_x:.1f}, {test_y:.1f}])")
 
     ax2.set_aspect("equal", "box")
-    ax2.set_xlim(-3.5, 3.5)
-    ax2.set_ylim(-3.5, 3.5)
+    ax2.set_xlim(-4.0, 4.0)
+    ax2.set_ylim(-4.0, 4.0)
     ax2.grid(True, linestyle="--", alpha=0.4)
     ax2.axhline(0, color="black", linewidth=0.5)
     ax2.axvline(0, color="black", linewidth=0.5)
@@ -181,7 +216,7 @@ with colR:
     ax2.legend(loc="upper right")
     st.pyplot(fig2)
 
-# ----------------- METRICS & FORMULAS -----
+# ---------------- METRICS & FORMULAS ----------------
 st.markdown("---")
 m1, m2, m3 = st.columns(3)
 
@@ -194,10 +229,11 @@ with m2:
               f"T(x) = ({test_t[0]:.2f}, {test_t[1]:.2f})")
 
 with m3:
-    st.latex(r"T(\mathbf{x}) = A\mathbf{x}, \quad \det(A) = ad - bc")
+    st.latex(r"T(\mathbf{x}) = A\mathbf{x} + \mathbf{b}")
+    st.latex(r"\det(A) = ad - bc")
     st.latex(r"\text{Area scaling} = |\det(A)|")
 
-# ----------------- EXPORT ------------------
+# ---------------- EXPORT CSV ----------------
 st.markdown("---")
 if st.sidebar.button("📥 Export grid data as CSV"):
     df = pd.DataFrame({
@@ -214,4 +250,4 @@ if st.sidebar.button("📥 Export grid data as CSV"):
         mime="text/csv",
     )
 
-st.markdown("*✅ Clean, error‑free, and ready to run with `streamlit run app.py`*")
+st.markdown("*✅ All features: translation, scaling, rotation, shearing, reflection – ready to run with `streamlit run app.py`*")
